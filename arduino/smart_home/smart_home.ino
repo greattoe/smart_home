@@ -1,24 +1,20 @@
-#include <Servo.h>
-
-#include <SimpleDHT.h>
-int pinDHT11 = 12;
-SimpleDHT11 dht11(pinDHT11);
-
-Servo servo;
-
-#include <Wire.h> 
-#include <LiquidCrystal_I2C.h>
 
 #define OPEN 90 /* window */
 #define CLOSE 0 /* window */
+#define DHTPIN 12
+#define DHTTYPE DHT11
+#include <Servo.h>
+Servo servo;
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27,16,2);
+#include "DHT.h"
+DHT dht(DHTPIN, DHTTYPE);
 
-String inputString = ""; /* string recieved from serial port */
-String str2lcd = ""; /* string to display on LCD */
-bool stringComplete = false;
+String inputString = "";
+String str2lcd = "";
 String tempString = "";
-String passwd = "1234"; /* password string for door */
-
+String passwd = "1234";
 const int pinR    =  23; /* Red Pin of RGB LED   */
 const int pinG    =  35; /* Green Pin of RGB LED */
 const int pinB     = 36; /* Blue Pin of RGB LED  */
@@ -33,8 +29,8 @@ const int ding = 784; /* Freq.1 of Door Bell Sound */
 const int dong = 659; /* Freq.2 of Door Bell Sound */
 volatile bool inten  =  false;
 
-
-void setup() {
+void setup()  /*********************************************** begin setup() *******/
+{
   pinMode(pinSW, INPUT);
   pinMode(pinFan, OUTPUT);
   pinMode(pinGasFan, OUTPUT);
@@ -43,27 +39,29 @@ void setup() {
   pinMode(pinR, OUTPUT);  pinMode(pinG, OUTPUT);  pinMode(pinB, OUTPUT);
   servo.attach(pinservo);
   servo.write(CLOSE);
-  Serial.begin(115200);
+  Serial.begin(9600);
   inputString.reserve(20);
   lcd.init();
   lcd.backlight();
   lcd.setCursor(0,0);
   lcd.print(">> Smart Home <<");
-} /*****************************************************************************/
+}
 
+/************************************************* user define functions *****/
 void light_on(void){
   digitalWrite(pinR, HIGH); digitalWrite(pinG, HIGH); digitalWrite(pinB, HIGH);
-  str2lcd = "light on"; Serial.println("light_on");
+  str2lcd ="Light On";
 }
 
 void light_off(void){
   digitalWrite(pinR, LOW); digitalWrite(pinG, LOW); digitalWrite(pinB, LOW);
-  str2lcd = "light off";  Serial.println("light_off");
+  str2lcd ="Light Off";
 }
 
 void door_open(void){
   digitalWrite(pinLock, HIGH);  delay(3000);
   str2lcd ="DoorLockReleased";  write_lcd();  Serial.println("door_open");
+  str2lcd ="DoorLockReleased";
   delay(3000);  door_close();
   
   }
@@ -74,12 +72,12 @@ void door_close(void){
 
 void gas_fan_on(void){
   digitalWrite(pinGasFan, HIGH);
-  str2lcd ="GasFan On";  Serial.println("gasfan_on");
+  str2lcd ="Gas Fan On";
 }
 
 void gas_fan_off(void){
   digitalWrite(pinGasFan, LOW);
-  str2lcd ="GasFan Off";  Serial.println("gasfan_off");
+  str2lcd ="Gas Fan Off";
 }
 
 void fan_on(void){
@@ -112,24 +110,31 @@ void write_lcd(void)
   lcd.print(str2lcd);
 }
 
-void loop() {
-  /***************************************************************************/
+void read_dht(void)
+{
+  int h = dht.readHumidity();
+  int t = dht.readTemperature();
+  Serial.print("TEMP");  Serial.println(t);
+  Serial.print("HUMI");  Serial.println(h);
   
-  byte temperature = 0;
-  byte humidity = 0;
-  int err = SimpleDHTErrSuccess;
-  if ((err = dht11.read(&temperature, &humidity, NULL)) != SimpleDHTErrSuccess) {
-    Serial.print("Read DHT11 failed, err="); Serial.print(SimpleDHTErrCode(err));
-    Serial.print(","); Serial.println(SimpleDHTErrDuration(err)); delay(1000);
-    return;
+}
+
+/* variables for 1.5sec timer */
+  const int periode = 1500;
+long prv_millis = 0;
+long cur_millis = 0;
+
+void loop()  /*********************************************** begin loop() *******/
+{
+  cur_millis = millis();
+  if(cur_millis - prv_millis > periode)
+  {
+    read_dht();
+    prv_millis = cur_millis;
   }
-  Serial.print("TEMP"); Serial.println((int)temperature);
-  Serial.print("HUMI"); Serial.println((int)humidity);
-  delay(1500);
-
-
-  
-  if(inten) {
+  else;
+  if(inten)
+  {
   
     tone(pinBuzz, ding); delay(300); noTone(pinBuzz);
     tone(pinBuzz, dong); delay(500); noTone(pinBuzz);
@@ -137,88 +142,55 @@ void loop() {
     tone(pinBuzz, dong); delay(500); noTone(pinBuzz);
     inten = false;
   }
-  /***************************************************************************/
-  if (stringComplete) {
-    /* Serial.println(inputString); */
-    if(inputString.substring(0, 2) == "pw"){
-      if(inputString.substring(2,6) == passwd) door_open();
-    }
-    if(inputString.substring(0, 3) == "lcd")
+  if(Serial.available()>0)
+  {
+    char ch = Serial.read();
+    if(ch != '\n')
     {
-      str2lcd = inputString.substring(3);
-      write_lcd();      
+      inputString += ch;
     }
-    if(inputString.substring(0, 6) == "light_")
+    else/*** actions ****/
     {
-      if(inputString.substring(6) == "on")
+      if(inputString.substring(0, 2) == "pw")
       {
-        light_on();
+        if(inputString.substring(2,6) == passwd) door_open();
+        else;
       }
-      if(inputString.substring(6) == "off")
+      if(inputString.substring(0, 6) == "light_")
       {
-        light_off();
+        if(inputString.substring(6) == "on")  light_on();
+        if(inputString.substring(6) == "off")  light_off();
       }
-    }
-
-    if(inputString.substring(0, 7) == "window_")
+      if(inputString.substring(0, 6) == "light_")
+      {
+        if(inputString.substring(6) == "on")  light_on();
+        if(inputString.substring(6) == "off")  light_off();
+      }
+      if(inputString.substring(0, 7) == "window_")
     {
-      if(inputString.substring(7) == "open")
-      {
-        window_open();
-      }
-      if(inputString.substring(7) == "close")
-      {
-        window_close();
-      }
+      if(inputString.substring(7) == "open")  window_open();
+      if(inputString.substring(7) == "close") window_close();      
     }
-
-
+      if(inputString.substring(0, 7) == "gasfan_")
+    {
+      if(inputString.substring(7) == "on")  gas_fan_on();
+      if(inputString.substring(7) == "off") gas_fan_off();
+    }
+      if(inputString.substring(0, 11) == "ceilingfan_")
+    {
+      if(inputString.substring(11) == "on")  fan_on();
+      if(inputString.substring(11) == "off") fan_off();    
+    }
     
-      if(inputString.substring(0, 7) == "gasfan_"){
-        if(inputString.substring(7) == "on")  {
-          gas_fan_on();
-          }
-        if(inputString.substring(7) == "off"){
-          gas_fan_off();
-        }
-    }
-      if(inputString.substring(0, 11) == "ceilingfan_"){
-        if(inputString.substring(11) == "on")  {
-          fan_on();
-          }
-        if(inputString.substring(11) == "off"){
-          fan_off();
-        }
-      
-    }
-  write_lcd();
-    // clear the string:
     inputString = "";
-    stringComplete = false;
-  }/*
-  int h = dht.readHumidity();
-  int t = dht.readTemperature();
-  Serial.print("TEMP"); Serial.println(t);
-  Serial.print("HUMI"); Serial.println(h);
-  delay(2000);
-  */
+    write_lcd();
+  }
 }
+
+}
+
   
-void intfunc()
+void intfunc()  /* External Interrupt Service Routine by SW(2) */
 {
   inten = true;
-}
-
-void serialEvent() {
-  while (Serial.available()) {
-    // get the new byte:
-    char inChar = Serial.read();
-    // add it to the inputString:
-    if(inChar != '\n'){
-      inputString += inChar;
-    }
-    else {
-      stringComplete = true;
-    }
-  }
 }
