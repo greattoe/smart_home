@@ -5,15 +5,15 @@
 #define DHTTYPE DHT11
 #include <Servo.h>
 Servo servo;
-#include <Wire.h>
+#include <Wire.h> 
 #include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27,16,2);
 #include "DHT.h"
 DHT dht(DHTPIN, DHTTYPE);
-
 String inputString = "";
 String str2lcd = "";
 String tempString = "";
+int count4dht = 0;
 String passwd = "1234";
 const int pinR    =  23; /* Red Pin of RGB LED   */
 const int pinG    =  35; /* Green Pin of RGB LED */
@@ -28,6 +28,10 @@ const int pinDHT   = 12;  // dht11 sensor
 const int ding = 784; /* Freq.1 of Door Bell Sound */
 const int dong = 659; /* Freq.2 of Door Bell Sound */
 volatile bool inten  =  false;
+
+const int periode = 1500;
+long prv_millis = 0;
+long cur_millis = 0;
 
 void setup()  /*********************************************** begin setup() *******/
 {
@@ -50,18 +54,15 @@ void setup()  /*********************************************** begin setup() ***
 /************************************************* user define functions *****/
 void light_on(void){
   digitalWrite(pinR, HIGH); digitalWrite(pinG, HIGH); digitalWrite(pinB, HIGH);
-  str2lcd ="Light On";
 }
 
 void light_off(void){
   digitalWrite(pinR, LOW); digitalWrite(pinG, LOW); digitalWrite(pinB, LOW);
-  str2lcd ="Light Off";
 }
 
 void door_open(void){
   digitalWrite(pinLock, HIGH);  delay(3000);
   str2lcd ="DoorLockReleased";  write_lcd();  Serial.println("door_open");
-  str2lcd ="DoorLockReleased";
   delay(3000);  door_close();
   
   }
@@ -72,12 +73,10 @@ void door_close(void){
 
 void gas_fan_on(void){
   digitalWrite(pinGasFan, HIGH);
-  str2lcd ="Gas Fan On";
 }
 
 void gas_fan_off(void){
   digitalWrite(pinGasFan, LOW);
-  str2lcd ="Gas Fan Off";
 }
 
 void fan_on(void){
@@ -119,10 +118,7 @@ void read_dht(void)
   
 }
 
-/* variables for 1.5sec timer */
-  const int periode = 1500;
-long prv_millis = 0;
-long cur_millis = 0;
+
 
 void loop()  /*********************************************** begin loop() *******/
 {
@@ -132,7 +128,6 @@ void loop()  /*********************************************** begin loop() *****
     read_dht();
     prv_millis = cur_millis;
   }
-  else;
   if(inten)
   {
   
@@ -174,12 +169,12 @@ void loop()  /*********************************************** begin loop() *****
       if(inputString.substring(0, 7) == "gasfan_")
     {
       if(inputString.substring(7) == "on")  gas_fan_on();
-      if(inputString.substring(7) == "off") gas_fan_off();
+      if(inputString.substring(7) == "off") gas_fan_off();      
     }
       if(inputString.substring(0, 11) == "ceilingfan_")
     {
       if(inputString.substring(11) == "on")  fan_on();
-      if(inputString.substring(11) == "off") fan_off();    
+      if(inputString.substring(11) == "off") fan_off();      
     }
     
     inputString = "";
@@ -190,7 +185,7 @@ void loop()  /*********************************************** begin loop() *****
 }
 
   
-void intfunc()  /* External Interrupt Service Routine by SW(2) */
+void intfunc()
 {
   inten = true;
 }
